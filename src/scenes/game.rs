@@ -8,7 +8,8 @@ use crate::scenes::manager::{Scene, Transition};
 use crate::bullet::Bullet;
 use crate::enemy::Enemy;
 use tetra::graphics::Color;
-use rand::{Rng};
+use rand::prelude::*;
+use rand::Rng;
 
 pub struct GameScene {
 	state: State,
@@ -32,16 +33,17 @@ pub struct GameScene {
 	bullet_art_up: Texture,
 	gameover_text: Text,
 	background: Texture,
-	snd_shoot_instance: SoundInstance,
-	snd_shoot2_instance: SoundInstance,
-	snd_hurt_instance: SoundInstance,
-	snd_hurt2_instance: SoundInstance,
-	snd_pickup_instance: SoundInstance,
+	snd_shoot_slow: Sound,
+	snd_shoot_fast: Sound,
+	snd_pickup: Sound,
+	snd_hurt: Sound,
+	snd_hurt2: Sound,
 	snd_newlevel_instance: SoundInstance,
 	score: i32,
 	score_text: Text,
 	count_spawn: i32,
 	spawn_rate: i32,
+	randomizer: ThreadRng,
 }
 
 impl GameScene{
@@ -68,24 +70,16 @@ impl GameScene{
 		let gameover_text = Text::new("GAME OVER", Font::default(), 32.0);
 
 		audio::set_master_volume(ctx, 2.0);
-		let snd_shoot = Sound::from_file_data(include_bytes!("../../assets/sound/shoot3.wav"));
-		let snd_shoot_instance  = snd_shoot.spawn(ctx)?;
-		snd_shoot_instance.set_volume(0.1);
-		let snd_shoot2 = Sound::from_file_data(include_bytes!("../../assets/sound/shoot1.wav"));
-		let snd_shoot2_instance  = snd_shoot2.spawn(ctx)?;
-		snd_shoot2_instance.set_volume(0.1);
+		let snd_shoot_slow = Sound::from_file_data(include_bytes!("../../assets/sound/shoot3.wav"));
+		let snd_shoot_fast = Sound::from_file_data(include_bytes!("../../assets/sound/shoot1.wav"));
 		let snd_hurt = Sound::from_file_data(include_bytes!("../../assets/sound/ouch.wav"));
-		let snd_hurt_instance  = snd_hurt.spawn(ctx)?;
-		snd_hurt_instance.set_volume(0.1);
 		let snd_hurt2 = Sound::from_file_data(include_bytes!("../../assets/sound/ouch5.wav"));
-		let snd_hurt2_instance  = snd_hurt2.spawn(ctx)?;
-		snd_hurt2_instance.set_volume(0.2);
 		let snd_pickup = Sound::from_file_data(include_bytes!("../../assets/sound/pickup.wav"));
-		let snd_pickup_instance  = snd_pickup.spawn(ctx)?;
-		snd_pickup_instance.set_volume(0.1);
 		let snd_newlevel = Sound::from_file_data(include_bytes!("../../assets/sound/level.wav"));
 		let snd_newlevel_instance  = snd_newlevel.spawn(ctx)?;
 		snd_newlevel_instance.set_volume(0.1);
+
+		let randomizer = rand::thread_rng();
 
 
 		Ok(GameScene {
@@ -107,11 +101,11 @@ impl GameScene{
 			bullet_art_down,
 			gameover_text,
 			background,
-			snd_shoot_instance,
-			snd_shoot2_instance,
-			snd_hurt_instance,
-			snd_hurt2_instance,
-			snd_pickup_instance,
+			snd_shoot_slow,
+			snd_shoot_fast,
+			snd_pickup,
+			snd_hurt,
+			snd_hurt2,
 			score: 0,
 			score_text,
 			level,
@@ -120,6 +114,7 @@ impl GameScene{
 			count_spawn: 0,
 			spawn_rate: 0,
 			snd_newlevel_instance,
+			randomizer,
 		})
 	}
 
@@ -135,18 +130,18 @@ impl GameScene{
 		self.player_position = Vec2::new(GAMEINFO.window.get_half().x,(GAMEINFO.window.height - 76) as f32);
 	}
 
-	fn shoot(&mut self, force: i32){
+	fn shoot(&mut self,ctx: &mut Context, force: i32){
 		let mut bullet = Bullet::new(self.player_position, force);
 		bullet.set_velocity(bullet.get_velocity() * glm::clamp_scalar(force, 1, 4) as f32);
 		self.bullets.push(bullet);
 		if force == 1{
-			self.snd_shoot_instance.play();
+			self.snd_shoot_slow.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1));
 		}else{
-			self.snd_shoot2_instance.play();
+			self.snd_shoot_fast.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1));
 		}
 	}
 
-	fn check_collision(&mut self){
+	fn check_collision(&mut self, ctx: &mut Context){
 		for enemy in self.enemys.iter_mut(){
 			if !enemy.is_dead() {
 				let x = enemy.get_position().x as i32;
@@ -161,12 +156,12 @@ impl GameScene{
 						let bh = bullet.get_area().1;
 						if w > 0 && h > 0 && bw > 0 && bh > 0 && x < bx + bw && x + w > bx && y < by + bh && y + h > by {
 							// score logic
-							self.score += ((480.0 - enemy.get_position().y)/5.0) as i32 * bullet.get_force();
-
+							let points = ((480.0 - enemy.get_position().y)/5.0) as i32 * bullet.get_force();
+							self.score += points;
 							enemy.hurt();
 							bullet.consume_force();
 							self.life +=1;
-							self.snd_hurt_instance.play();
+							self.snd_hurt.play_with(ctx, 0.1, self.randomizer.gen_range(0.9,1.1));
 						}
 					}
 				}
@@ -174,63 +169,62 @@ impl GameScene{
 		}
 	}
 
-	fn check_player_get_hurt(&mut self){
+	fn check_player_get_hurt(&mut self, ctx: &mut Context){
 		for enemy in self.enemys.iter_mut(){
 			if enemy.get_position().y >= 392.0 && !enemy.is_dead(){
 				self.life -= 1;
 				enemy.hurt();
-				self.snd_hurt2_instance.play();
+				self.snd_hurt2.play_with(ctx, 0.2, self.randomizer.gen_range(0.8,1.1));
 			}
 		}
 	}
 
-	fn check_player_get_life(&mut self){
+	fn check_player_get_life(&mut self, ctx: &mut Context){
 		for bullet in self.bullets.iter_mut(){
 			if bullet.get_position().y >= 392.0 && !bullet.is_broken() && bullet.is_returning(){
 				self.life += bullet.get_force();
 				bullet.set_broken();
-				self.snd_pickup_instance.play();
+				self.snd_pickup.play_with(ctx,0.08,self.randomizer.gen_range(0.9,1.0));
 			}
 		}
 	}
 
 	fn spawn_enemy(&mut self){
 		// setup spawn logic
-		let mut rng = rand::thread_rng();
 		let mut positions = vec![40.0,60.0,80.0,100.0,120.0,140.0,160.0,180.0,200.0];
 		let mut vec_velocity = 0;
 		let mut max_enemy = self.level;
 		if self.level <= 2{
 			positions = vec![80.0,100.0,120.0,140.0,160.0];
 		}else if self.level <= 4{
-			vec_velocity = rng.gen_range(0,2);
+			vec_velocity = self.randomizer.gen_range(0,2);
 			positions = vec![60.0,80.0,100.0,140.0,160.0,180.0,200.0];
 		}else if self.level == 5{
 			max_enemy = 4;
 			positions = vec![40.0,60.0,80.0,100.0,140.0,160.0,180.0,200.0];
 		} else if self.level == 6{
 			if self.count_spawn % 5 == 0 {
-				vec_velocity = rng.gen_range(1, 3);
+				vec_velocity = self.randomizer.gen_range(1, 3);
 			}
 			positions = vec![80.0,100.0,120.0,160.0,180.0];
 		} else if self.level == 7{
 			max_enemy = 5;
-			vec_velocity = rng.gen_range(0,2);
+			vec_velocity = self.randomizer.gen_range(0,2);
 			positions = vec![80.0,100.0,120.0,140.0,160.0];
 		}else if self.level == 8{
 			max_enemy = 6;
 			positions = vec![40.0,80.0,120.0,160.0,200.0];
 		}else{
 			if self.count_spawn % 10 == 0{
-				vec_velocity = rng.gen_range(1,3);
+				vec_velocity = self.randomizer.gen_range(1,3);
 			}else if self.count_spawn % 4 == 0 {
-				vec_velocity = rng.gen_range(0,2);
+				vec_velocity = self.randomizer.gen_range(0,2);
 			}
 		}
 
 		// enemy spawn
 		let max_len = positions.len();
-		let x = positions[rng.gen_range(0,max_len)];
+		let x = positions[self.randomizer.gen_range(0,max_len)];
 		if self.enemys.len() < max_enemy as usize{
 			let mut enemy = Enemy::new(Vec2::new(x,-20.0));
 			enemy.set_velocity(Vec2::new(0.0,enemy.get_velocity().y + vec_velocity as f32));
@@ -303,7 +297,7 @@ impl Scene for GameScene {
 			if (input::is_key_released(ctx, Key::Space) || gamepad_connected
 				&& input::is_gamepad_button_released(ctx,0,GamepadButton::A)) && self.force > 0 {
 				self.state = State::Normal;
-				self.shoot(self.force);
+				self.shoot(ctx, self.force);
 				self.force = 0;
 				self.tick = 0;
 			}
@@ -327,9 +321,9 @@ impl Scene for GameScene {
 			}
 
 			// check collision, player hurt and player get life back
-			self.check_collision();
-			self.check_player_get_hurt();
-			self.check_player_get_life();
+			self.check_collision(ctx);
+			self.check_player_get_hurt(ctx);
+			self.check_player_get_life(ctx);
 
 			self.life_text.set_content(format!("{}", self.life));
 			self.level_text.set_content(format!("{}", self.level));
