@@ -272,15 +272,20 @@ impl Scene for GameScene {
 			}
 
 			//move
-			if (input::is_key_pressed(ctx, Key::Right) || gamepad_connected && input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Right)) && self.player_position.x <= 180.0 {
+			if (input::is_key_pressed(ctx, Key::Right) || gamepad_connected
+				&& input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Right))
+				&& self.player_position.x <= 180.0 {
 				self.player_position.x += 20.0
 			}
-			if (input::is_key_pressed(ctx, Key::Left) || gamepad_connected && input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left)) && self.player_position.x >= 60.0{
+			if (input::is_key_pressed(ctx, Key::Left) || gamepad_connected
+				&& input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left))
+				&& self.player_position.x >= 60.0{
 				self.player_position.x -= 20.0
 			}
 
 			//shoot
-			if (input::is_key_down(ctx, Key::Space) || gamepad_connected && input::is_gamepad_button_down(ctx,0,GamepadButton::A)) && self.life > 0 {
+			if (input::is_key_down(ctx, Key::Space) || gamepad_connected
+				&& input::is_gamepad_button_down(ctx,0,GamepadButton::A)) && self.life > 0 {
 				if self.state == State::Normal{
 					self.state = State::Pressed;
 					self.force += 1;
@@ -295,7 +300,8 @@ impl Scene for GameScene {
 				}
 			}
 
-			if (input::is_key_released(ctx, Key::Space) || gamepad_connected && input::is_gamepad_button_released(ctx,0,GamepadButton::A)) && self.force > 0 {
+			if (input::is_key_released(ctx, Key::Space) || gamepad_connected
+				&& input::is_gamepad_button_released(ctx,0,GamepadButton::A)) && self.force > 0 {
 				self.state = State::Normal;
 				self.shoot(self.force);
 				self.force = 0;
@@ -331,7 +337,8 @@ impl Scene for GameScene {
 		}
 
 		// reset game after dead
-		if self.state == State::Dead && (input::is_key_released(ctx, Key::Return) || gamepad_connected && input::is_gamepad_button_released(ctx,0,GamepadButton::Start)){
+		if self.state == State::Dead && (input::is_key_released(ctx, Key::Return) || gamepad_connected
+			&& input::is_gamepad_button_released(ctx,0,GamepadButton::Start)){
 			self.reset();
 		}
 
@@ -371,8 +378,12 @@ impl Scene for GameScene {
 		if self.state == State::Dead {
 			let bound = self.gameover_text.get_bounds(ctx).unwrap();
 			let bound2 = self.score_text.get_bounds(ctx).unwrap();
-			graphics::draw(ctx, &self.gameover_text, Vec2::new(GAMEINFO.window.get_half().x - bound.width / 2.0, GAMEINFO.window.get_half().y));
-			graphics::draw(ctx, &self.score_text, Vec2::new(GAMEINFO.window.get_half().x - bound2.width / 2.0, GAMEINFO.window.get_half().y + 30.0));
+			graphics::draw(ctx, &self.gameover_text,
+						   Vec2::new(GAMEINFO.window.get_half().x - bound.width / 2.0,
+									 GAMEINFO.window.get_half().y));
+			graphics::draw(ctx, &self.score_text,
+						   Vec2::new(GAMEINFO.window.get_half().x - bound2.width / 2.0,
+									 GAMEINFO.window.get_half().y + 30.0));
 		}
 		Ok(Transition::None)
 	}
