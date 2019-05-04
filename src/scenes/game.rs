@@ -272,10 +272,10 @@ impl Scene for GameScene {
 			}
 
 			//move
-			if (input::is_key_pressed(ctx, Key::Right) || gamepad_connected && input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Right)) && self.player_position.x <= 200.0 {
+			if (input::is_key_pressed(ctx, Key::Right) || gamepad_connected && input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Right)) && self.player_position.x <= 180.0 {
 				self.player_position.x += 20.0
 			}
-			if (input::is_key_pressed(ctx, Key::Left) || gamepad_connected && input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left)) && self.player_position.x >= 40.0{
+			if (input::is_key_pressed(ctx, Key::Left) || gamepad_connected && input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left)) && self.player_position.x >= 60.0{
 				self.player_position.x -= 20.0
 			}
 
