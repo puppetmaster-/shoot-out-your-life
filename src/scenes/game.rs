@@ -135,9 +135,9 @@ impl GameScene{
 		bullet.set_velocity(bullet.get_velocity() * glm::clamp_scalar(force, 1, 4) as f32);
 		self.bullets.push(bullet);
 		if force == 1{
-			self.snd_shoot_slow.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1));
+			self.snd_shoot_slow.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1)).ok();
 		}else{
-			self.snd_shoot_fast.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1));
+			self.snd_shoot_fast.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1)).ok();
 		}
 	}
 
@@ -161,7 +161,7 @@ impl GameScene{
 							enemy.hurt();
 							bullet.consume_force();
 							self.life +=1;
-							self.snd_hurt.play_with(ctx, 0.1, self.randomizer.gen_range(0.9,1.1));
+							self.snd_hurt.play_with(ctx, 0.1, self.randomizer.gen_range(0.9,1.1)).ok();
 						}
 					}
 				}
@@ -174,7 +174,7 @@ impl GameScene{
 			if enemy.get_position().y >= 392.0 && !enemy.is_dead(){
 				self.life -= 1;
 				enemy.hurt();
-				self.snd_hurt2.play_with(ctx, 0.2, self.randomizer.gen_range(0.8,1.1));
+				self.snd_hurt2.play_with(ctx, 0.2, self.randomizer.gen_range(0.8,1.1)).ok();
 			}
 		}
 	}
@@ -184,7 +184,7 @@ impl GameScene{
 			if bullet.get_position().y >= 392.0 && !bullet.is_broken() && bullet.is_returning(){
 				self.life += bullet.get_force();
 				bullet.set_broken();
-				self.snd_pickup.play_with(ctx,0.08,self.randomizer.gen_range(0.9,1.0));
+				self.snd_pickup.play_with(ctx,0.08,self.randomizer.gen_range(0.9,1.0)).ok();
 			}
 		}
 	}
