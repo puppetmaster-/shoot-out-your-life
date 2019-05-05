@@ -1,5 +1,6 @@
 [package]
 name = "shoot_out_your_life"
+description = "2D vertical arcade shooter"
 version = "0.1.1"
 build = "build.rs"
 authors = ["puppetmaster <github@puppetmaster.ch>"]
@@ -35,3 +36,17 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+
+[package.metadata.deb]
+depends = "libasound2 (>= 1.1.3)"
+extended-description = """
+2D vertical arcade shooter where your ammo is your lives.
+
+Made for the Ludum Dare 44.
+
+jam page : https://ldjam.com/events/ludum-dare/44/shoot-out-your-life
+
+source   : https://github.com/puppetmaster-/shoot-out-your-life
+
+"""
+section = "games"
