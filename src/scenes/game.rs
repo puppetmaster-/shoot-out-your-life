@@ -355,9 +355,9 @@ impl Scene for GameScene {
 
 		//draw enemy
 		for enemy in self.enemys.iter(){
-			if enemy.get_velocity().y == 1.0{
+			if enemy.get_velocity().y as i32 == 1{
 				graphics::draw(ctx, &self.enemy_art,enemy.get_position()-Vec2::new(10.0,0.0));
-			}else if enemy.get_velocity().y == 2.0{
+			}else if enemy.get_velocity().y as i32 == 2{
 				graphics::draw(ctx, &self.enemy_art2,enemy.get_position()-Vec2::new(10.0,0.0));
 			}else{
 				graphics::draw(ctx, &self.enemy_art3,enemy.get_position()-Vec2::new(10.0,0.0));
