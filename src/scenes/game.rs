@@ -136,8 +136,10 @@ impl GameScene{
 		self.bullets.push(bullet);
 		if force == 1{
 			self.snd_shoot_slow.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1)).ok();
+			input::start_gamepad_vibration(ctx, 0, 0.05, 200);
 		}else{
 			self.snd_shoot_fast.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1)).ok();
+			input::start_gamepad_vibration(ctx, 0, 0.1, 280);
 		}
 	}
 
@@ -175,6 +177,7 @@ impl GameScene{
 				self.life -= 1;
 				enemy.hurt();
 				self.snd_hurt2.play_with(ctx, 0.2, self.randomizer.gen_range(0.8,1.1)).ok();
+				input::start_gamepad_vibration(ctx, 0, 0.3, 200);
 			}
 		}
 	}
@@ -253,8 +256,6 @@ impl Scene for GameScene {
 		self.enemy_art2.tick();
 		self.enemy_art3.tick();
 
-		let gamepad_connected = input::is_gamepad_connected(ctx, 0);
-
 		//GAME
 		if self.state != State::Dead {
 
@@ -266,20 +267,20 @@ impl Scene for GameScene {
 			}
 
 			//move
-			if (input::is_key_pressed(ctx, Key::Right) || gamepad_connected
-				&& input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Right))
+			if (input::is_key_pressed(ctx, Key::Right) ||
+				input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Right))
 				&& self.player_position.x <= 180.0 {
 				self.player_position.x += 20.0
 			}
-			if (input::is_key_pressed(ctx, Key::Left) || gamepad_connected
-				&& input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left))
+			if (input::is_key_pressed(ctx, Key::Left) ||
+				input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left))
 				&& self.player_position.x >= 60.0{
 				self.player_position.x -= 20.0
 			}
 
 			//shoot
-			if (input::is_key_down(ctx, Key::Space) || gamepad_connected
-				&& input::is_gamepad_button_down(ctx,0,GamepadButton::A)) && self.life > 0 {
+			if (input::is_key_down(ctx, Key::Space) ||
+				input::is_gamepad_button_down(ctx, 0, GamepadButton::A)) && self.life > 0 {
 				if self.state == State::Normal{
 					self.state = State::Pressed;
 					self.force += 1;
@@ -294,8 +295,8 @@ impl Scene for GameScene {
 				}
 			}
 
-			if (input::is_key_released(ctx, Key::Space) || gamepad_connected
-				&& input::is_gamepad_button_released(ctx,0,GamepadButton::A)) && self.force > 0 {
+			if (input::is_key_released(ctx, Key::Space) ||
+				input::is_gamepad_button_released(ctx, 0, GamepadButton::A)) && self.force > 0 {
 				self.state = State::Normal;
 				self.shoot(ctx, self.force);
 				self.force = 0;
@@ -306,6 +307,7 @@ impl Scene for GameScene {
 			if self.life < 0 {
 				self.state = State::Dead;
 				self.score_text.set_content(format!("SCORE: {}",self.score));
+				input::start_gamepad_vibration(ctx, 0, 0.4, 500);
 			}
 
 			//update bullets
@@ -331,8 +333,8 @@ impl Scene for GameScene {
 		}
 
 		// reset game after dead
-		if self.state == State::Dead && (input::is_key_released(ctx, Key::Return) || gamepad_connected
-			&& input::is_gamepad_button_released(ctx,0,GamepadButton::Start)){
+		if self.state == State::Dead && (input::is_key_released(ctx, Key::Return) ||
+			input::is_gamepad_button_released(ctx,0,GamepadButton::Start)){
 			self.reset();
 		}
 
