@@ -130,8 +130,8 @@ impl GameScene{
 		self.player_position = Vec2::new(GAMEINFO.window.get_half().x,(GAMEINFO.window.height - 76) as f32);
 	}
 
-	fn shoot(&mut self,ctx: &mut Context, force: i32){
-		let mut bullet = Bullet::new(self.player_position, force);
+	fn shoot(&mut self,ctx: &mut Context, force: i32, spawn_position: Vec2){
+		let mut bullet = Bullet::new(spawn_position, force);
 		bullet.set_velocity(bullet.get_velocity() * glm::clamp_scalar(force, 1, 4) as f32);
 		self.bullets.push(bullet);
 		if force == 1{
@@ -298,7 +298,7 @@ impl Scene for GameScene {
 			if (input::is_key_released(ctx, Key::Space) ||
 				input::is_gamepad_button_released(ctx, 0, GamepadButton::A)) && self.force > 0 {
 				self.state = State::Normal;
-				self.shoot(ctx, self.force);
+				self.shoot(ctx, self.force, self.player_position);
 				self.force = 0;
 				self.tick = 0;
 			}
