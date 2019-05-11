@@ -1,7 +1,6 @@
 use tetra::Context;
 use tetra::glm::{self, Vec2};
-use tetra::audio::{self, Sound, SoundInstance};
-use tetra::graphics::{self, Text, Font, Texture, Animation, Rectangle};
+use tetra::graphics::{self, DrawParams};
 use tetra::input::{self, Key, GamepadButton};
 use crate::GAMEINFO;
 use crate::scenes::manager::{Scene, Transition};
@@ -9,117 +8,50 @@ use crate::bullet::Bullet;
 use crate::enemy::Enemy;
 use tetra::graphics::Color;
 use rand::prelude::*;
-use rand::Rng;
+use crate::assets::{Assets, SoundName, TextureName, AnimationName, TextName};
+use crate::particle::Particle;
 
 pub struct GameScene {
 	state: State,
 	tick: i32,
 	tick_max: i32,
 	life: i32,
-	life_text: Text,
-	life_art: Texture,
 	level: i32,
-	level_text: Text,
-	level_art: Texture,
 	force: i32,
-	player_art: Animation,
-	player_position: Vec2,
-	bullets: Vec<Bullet>,
-	enemy_art: Animation,
-	enemy_art2: Animation,
-	enemy_art3: Animation,
-	enemys: Vec<Enemy>,
-	bullet_art_down: Texture,
-	bullet_art_up: Texture,
-	gameover_text: Text,
-	background: Texture,
-	snd_shoot_slow: Sound,
-	snd_shoot_fast: Sound,
-	snd_pickup: Sound,
-	snd_hurt: Sound,
-	snd_hurt2: Sound,
-	snd_newlevel_instance: SoundInstance,
 	score: i32,
-	score_text: Text,
 	count_spawn: i32,
 	spawn_rate: i32,
+	assets: Assets,
+	player_position: Vec2,
+	bullets: Vec<Bullet>,
+	enemies: Vec<Enemy>,
+	particles: Vec<Particle>,
 	randomizer: ThreadRng,
 }
 
 impl GameScene{
 	pub fn new(ctx: &mut Context) -> tetra::Result<GameScene> {
-		let tileset = Texture::from_file_data(ctx, include_bytes!("../../assets/art/shootOutYourLife.png"))?;
-
-		let life = 10;
-		let life_text = Text::new(format!("{}",life), Font::default(), 24.0);
-		let life_art = Texture::from_file_data(ctx,include_bytes!("../../assets/art/life_art.png"))?;
-
-		let level = 1;
-		let level_text = Text::new(format!("{}",level), Font::default(), 24.0);
-		let level_art = Texture::from_file_data(ctx,include_bytes!("../../assets/art/level_art.png"))?;
-
-		let score_text = Text::new("", Font::default(), 18.0);
-		let player_position = Vec2::new((GAMEINFO.window.width/2) as f32,(GAMEINFO.window.height - 76) as f32);
-		let player_art = Animation::new(tileset.clone(),Rectangle::row(0.0, 0.0, 32.0, 32.0).take(4).collect(), 10);
-		let bullet_art_down = Texture::from_file_data(ctx,include_bytes!("../../assets/art/shoot_0.png"))?;
-		let bullet_art_up = Texture::from_file_data(ctx,include_bytes!("../../assets/art/shoot_1.png"))?;
-		let enemy_art = Animation::new(tileset.clone(),Rectangle::row(128.0, 0.0, 32.0, 32.0).take(4).collect(), 10);
-		let enemy_art2 = Animation::new(tileset.clone(),Rectangle::row(128.0, 32.0, 32.0, 32.0).take(4).collect(), 10);
-		let enemy_art3 = Animation::new(tileset.clone(),Rectangle::row(0.0, 32.0, 32.0, 32.0).take(4).collect(), 10);
-		let background = Texture::from_file_data(ctx,include_bytes!("../../assets/art/background.png"))?;
-		let gameover_text = Text::new("GAME OVER", Font::default(), 32.0);
-
-		audio::set_master_volume(ctx, 2.0);
-		let snd_shoot_slow = Sound::from_file_data(include_bytes!("../../assets/sound/shoot3.wav"));
-		let snd_shoot_fast = Sound::from_file_data(include_bytes!("../../assets/sound/shoot1.wav"));
-		let snd_hurt = Sound::from_file_data(include_bytes!("../../assets/sound/ouch.wav"));
-		let snd_hurt2 = Sound::from_file_data(include_bytes!("../../assets/sound/ouch5.wav"));
-		let snd_pickup = Sound::from_file_data(include_bytes!("../../assets/sound/pickup.wav"));
-		let snd_newlevel = Sound::from_file_data(include_bytes!("../../assets/sound/level.wav"));
-		let snd_newlevel_instance  = snd_newlevel.spawn(ctx)?;
-		snd_newlevel_instance.set_volume(0.1);
-
-		let randomizer = rand::thread_rng();
-
-
 		Ok(GameScene {
 			state: State::Normal,
 			tick: 0,
 			tick_max: 10,
-			life,
-			life_art,
-			life_text,
+			life: 10,
 			force: 0,
-			player_art,
-			player_position,
-			bullets: vec![],
-			enemy_art,
-			enemy_art2,
-			enemy_art3,
-			enemys: vec![],
-			bullet_art_up,
-			bullet_art_down,
-			gameover_text,
-			background,
-			snd_shoot_slow,
-			snd_shoot_fast,
-			snd_pickup,
-			snd_hurt,
-			snd_hurt2,
 			score: 0,
-			score_text,
-			level,
-			level_art,
-			level_text,
+			level: 1,
 			count_spawn: 0,
 			spawn_rate: 0,
-			snd_newlevel_instance,
-			randomizer,
+			player_position: Vec2::new((GAMEINFO.window.width/2) as f32,(GAMEINFO.window.height - 76) as f32),
+			bullets: vec![],
+			enemies: vec![],
+			particles: vec![],
+			assets: Assets::new(ctx)?,
+			randomizer: rand::thread_rng(),
 		})
 	}
 
 	fn reset(&mut self){
-		self.enemys.clear();
+		self.enemies.clear();
 		self.bullets.clear();
 		self.score = 0;
 		self.state = State::Normal;
@@ -135,16 +67,16 @@ impl GameScene{
 		bullet.set_velocity(bullet.get_velocity() * glm::clamp_scalar(force, 1, 4) as f32);
 		self.bullets.push(bullet);
 		if force == 1{
-			self.snd_shoot_slow.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1)).ok();
+			self.assets.get_sound(&SoundName::ShootSlow).play_with(ctx, 0.1, self.randomizer.gen_range(0.8, 1.1)).ok();
 			input::start_gamepad_vibration(ctx, 0, 0.05, 200);
 		}else{
-			self.snd_shoot_fast.play_with(ctx,0.1,self.randomizer.gen_range(0.8,1.1)).ok();
+			self.assets.get_sound(&SoundName::ShootSlow).play_with(ctx, 0.1, self.randomizer.gen_range(0.8, 1.1)).ok();
 			input::start_gamepad_vibration(ctx, 0, 0.1, 280);
 		}
 	}
 
 	fn check_collision(&mut self, ctx: &mut Context){
-		for enemy in self.enemys.iter_mut(){
+		for enemy in self.enemies.iter_mut(){
 			if !enemy.is_dead() {
 				let x = enemy.get_position().x as i32;
 				let y = enemy.get_position().y as i32;
@@ -163,7 +95,7 @@ impl GameScene{
 							enemy.hurt();
 							bullet.consume_force();
 							self.life +=1;
-							self.snd_hurt.play_with(ctx, 0.1, self.randomizer.gen_range(0.9,1.1)).ok();
+							self.assets.get_sound(&SoundName::Hurt).play_with(ctx, 0.1, self.randomizer.gen_range(0.9, 1.1)).ok();
 						}
 					}
 				}
@@ -172,11 +104,11 @@ impl GameScene{
 	}
 
 	fn check_player_get_hurt(&mut self, ctx: &mut Context){
-		for enemy in self.enemys.iter_mut(){
+		for enemy in self.enemies.iter_mut(){
 			if enemy.get_position().y >= 392.0 && !enemy.is_dead(){
 				self.life -= 1;
 				enemy.hurt();
-				self.snd_hurt2.play_with(ctx, 0.2, self.randomizer.gen_range(0.8,1.1)).ok();
+				self.assets.get_sound(&SoundName::Hurt2).play_with(ctx, 0.2, self.randomizer.gen_range(0.8, 1.1)).ok();
 				input::start_gamepad_vibration(ctx, 0, 0.3, 200);
 			}
 		}
@@ -187,12 +119,12 @@ impl GameScene{
 			if bullet.get_position().y >= 392.0 && !bullet.is_broken() && bullet.is_returning(){
 				self.life += bullet.get_force();
 				bullet.set_broken();
-				self.snd_pickup.play_with(ctx,0.08,self.randomizer.gen_range(0.9,1.0)).ok();
+				self.assets.get_sound(&SoundName::Pickup).play_with(ctx, 0.08, self.randomizer.gen_range(0.9, 1.0)).ok();
 			}
 		}
 	}
 
-	fn spawn_enemy(&mut self){
+	fn spawn_enemy(&mut self, ctx: &mut Context){
 		// setup spawn logic
 		let mut positions = vec![40.0,60.0,80.0,100.0,120.0,140.0,160.0,180.0,200.0];
 		let mut vec_velocity = 0;
@@ -228,13 +160,13 @@ impl GameScene{
 		// enemy spawn
 		let max_len = positions.len();
 		let x = positions[self.randomizer.gen_range(0,max_len)];
-		if self.enemys.len() < max_enemy as usize{
+		if self.enemies.len() < max_enemy as usize{
 			let mut enemy = Enemy::new(Vec2::new(x,-20.0));
 			enemy.set_velocity(Vec2::new(0.0,enemy.get_velocity().y + vec_velocity as f32));
 			if vec_velocity == 2{
 				enemy.set_life(2);
 			}
-			self.enemys.push(enemy);
+			self.enemies.push(enemy);
 			self.count_spawn +=1
 		}
 
@@ -242,19 +174,29 @@ impl GameScene{
 		if self.count_spawn >=10*self.level{
 			self.level +=1;
 			self.count_spawn = 0;
-			self.snd_newlevel_instance.play();
+			self.assets.get_sound(&SoundName::NewLevel).play_with(ctx, 0.1, 1.0).ok();
 		}
+	}
+
+	fn add_bullet_particle(&mut self, position: Vec2){
+		self.particles.push(Particle::new(position,Vec2::new(0.0,0.0))
+			.set_aging(0.1)
+			.set_texture_name(TextureName::Particle0)
+			.set_offset(Vec2::new(self.randomizer.gen_range(2.0,4.0),0.0))
+		)
+	}
+	fn add_enemy_particle(&mut self, position: Vec2){
+		self.particles.push(Particle::new(position,Vec2::new(0.0,0.0))
+			.set_aging(0.07)
+			.set_texture_name(TextureName::Particle1)
+			.set_offset(Vec2::new(self.randomizer.gen_range(2.0,6.0),-3.0))
+		)
 	}
 }
 
 impl Scene for GameScene {
 	fn update(&mut self, ctx: &mut Context) -> tetra::Result<Transition> {
-
-		// play animation
-		self.player_art.tick();
-		self.enemy_art.tick();
-		self.enemy_art2.tick();
-		self.enemy_art3.tick();
+		self.assets.update();
 
 		//GAME
 		if self.state != State::Dead {
@@ -262,7 +204,7 @@ impl Scene for GameScene {
 			// dont't spawn on same place
 			self.spawn_rate += 1;
 			if self.spawn_rate > 20{
-				self.spawn_enemy();
+				self.spawn_enemy(ctx);
 				self.spawn_rate = 0;
 			}
 
@@ -306,20 +248,37 @@ impl Scene for GameScene {
 			// check for player dead
 			if self.life < 0 {
 				self.state = State::Dead;
-				self.score_text.set_content(format!("SCORE: {}",self.score));
+				self.assets.get_text_mut(TextName::Score).set_content(format!("SCORE: {}",self.score));
 				input::start_gamepad_vibration(ctx, 0, 0.4, 500);
 			}
 
 			//update bullets
 			self.bullets.retain(|b| !b.is_broken());
+			let mut bullet_positions = vec![];
 			for bullet in self.bullets.iter_mut(){
 				bullet.update();
+				bullet_positions.push(bullet.get_position());
 			}
 
+
 			//update enemy
-			self.enemys.retain(|b| !b.is_dead());
-			for enemy in self.enemys.iter_mut(){
+			self.enemies.retain(|e| !e.is_dead());
+			let mut enemy_positions = vec![];
+			for enemy in self.enemies.iter_mut(){
 				enemy.update();
+				enemy_positions.push(enemy.get_position());
+			}
+
+			//update and create particles
+			for pos in bullet_positions{
+				self.add_bullet_particle(pos);
+			}
+			for pos in enemy_positions{
+				self.add_enemy_particle(pos);
+			}
+			self.particles.retain(|p| !p.is_dead());
+			for particle in self.particles.iter_mut(){
+				particle.update();
 			}
 
 			// check collision, player hurt and player get life back
@@ -327,8 +286,8 @@ impl Scene for GameScene {
 			self.check_player_get_hurt(ctx);
 			self.check_player_get_life(ctx);
 
-			self.life_text.set_content(format!("{}", self.life));
-			self.level_text.set_content(format!("{}", self.level));
+			self.assets.get_text_mut(TextName::Life).set_content(format!("{}", self.life));
+			self.assets.get_text_mut(TextName::Level).set_content(format!("{}", self.level));
 
 		}
 
@@ -338,51 +297,77 @@ impl Scene for GameScene {
 			self.reset();
 		}
 
-		Ok(Transition::None)
+		if input::is_key_released(ctx, Key::Backspace) ||
+			input::is_gamepad_button_released(ctx,0,GamepadButton::Back){
+			Ok(Transition::Pop)
+		}else{
+			Ok(Transition::None)
+		}
 	}
 
 	fn draw(&mut self, ctx: &mut Context, _dt: f64) -> tetra::Result<Transition> {
 		graphics::clear(ctx, Color::rgb(0.122, 0.055, 0.11));
-		graphics::draw(ctx,&self.background,Vec2::new(0.0, 0.0));
-		graphics::draw(ctx,&self.player_art,self.player_position-Vec2::new(15.0,0.0));
+		graphics::draw(ctx,self.assets.get_texture(&TextureName::Background),
+					   Vec2::new(0.0, 0.0));
+		graphics::draw(ctx,self.assets.get_animation(&AnimationName::Player),
+					   self.player_position-Vec2::new(15.0,0.0));
+
+		//draw particles
+		for particle in self.particles.iter() {
+			graphics::draw(ctx, self.assets.get_texture(particle.get_texture_name()), DrawParams::new()
+				.position(particle.get_position()-particle.get_offset())
+				.color(particle.get_color())
+			);
+		}
 
 		//draw bullets
 		for bullet in self.bullets.iter(){
 			if bullet.is_returning(){
-				graphics::draw(ctx,&self.bullet_art_down,bullet.get_position()-Vec2::new(8.0,0.0))
+				graphics::draw(ctx,
+							   self.assets.get_texture(&TextureName::BulletDown),
+							   bullet.get_position()-Vec2::new(8.0,0.0))
 			}else{
-				graphics::draw(ctx,&self.bullet_art_up,bullet.get_position()-Vec2::new(8.0,0.0))
+				graphics::draw(ctx,
+							   self.assets.get_texture(&TextureName::BulletUp),
+							   bullet.get_position()-Vec2::new(8.0,0.0))
 			}
 		}
 
 		//draw enemy
-		for enemy in self.enemys.iter(){
+		for enemy in self.enemies.iter(){
 			if enemy.get_velocity().y as i32 == 1{
-				graphics::draw(ctx, &self.enemy_art,enemy.get_position()-Vec2::new(10.0,0.0));
+				graphics::draw(ctx,
+							   self.assets.get_animation(&AnimationName::Enemy1),
+							   enemy.get_position()-Vec2::new(10.0,0.0));
 			}else if enemy.get_velocity().y as i32 == 2{
-				graphics::draw(ctx, &self.enemy_art2,enemy.get_position()-Vec2::new(10.0,0.0));
+				graphics::draw(ctx,
+							   self.assets.get_animation(&AnimationName::Enemy2),
+							   enemy.get_position()-Vec2::new(10.0,0.0));
 			}else{
-				graphics::draw(ctx, &self.enemy_art3,enemy.get_position()-Vec2::new(10.0,0.0));
+				graphics::draw(ctx,
+							   self.assets.get_animation(&AnimationName::Enemy3),
+							   enemy.get_position()-Vec2::new(10.0,0.0));
 			}
 		}
 
 		//draw gui
-		graphics::draw(ctx, &self.life_art, Vec2::new(10.0, 436.0));
-		graphics::draw(ctx, &self.life_text, Vec2::new(32.0, 433.0));
-		graphics::draw(ctx, &self.level_art, Vec2::new(180.0, 436.0));
-		graphics::draw(ctx, &self.level_text, Vec2::new(200.0, 433.0));
+		graphics::draw(ctx, self.assets.get_texture(&TextureName::Life), Vec2::new(10.0, 436.0));
+		graphics::draw(ctx, self.assets.get_text(&TextName::Life), Vec2::new(32.0, 433.0));
+		graphics::draw(ctx, self.assets.get_texture(&TextureName::Level), Vec2::new(180.0, 436.0));
+		graphics::draw(ctx, self.assets.get_text(&TextName::Level), Vec2::new(200.0, 433.0));
 		if self.state == State::Dead {
-			let bound = self.gameover_text.get_bounds(ctx).unwrap();
-			let bound2 = self.score_text.get_bounds(ctx).unwrap();
-			graphics::draw(ctx, &self.gameover_text,
+			let bound = self.assets.get_text(&TextName::GameOver).get_bounds(ctx).unwrap();
+			let bound2 = self.assets.get_text(&TextName::Score).get_bounds(ctx).unwrap();
+			graphics::draw(ctx, self.assets.get_text(&TextName::GameOver),
 						   Vec2::new(GAMEINFO.window.get_half().x - bound.width / 2.0,
 									 GAMEINFO.window.get_half().y));
-			graphics::draw(ctx, &self.score_text,
+			graphics::draw(ctx, self.assets.get_text(&TextName::Score),
 						   Vec2::new(GAMEINFO.window.get_half().x - bound2.width / 2.0,
 									 GAMEINFO.window.get_half().y + 30.0));
 		}
 		Ok(Transition::None)
 	}
+
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

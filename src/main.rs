@@ -6,6 +6,8 @@ extern crate simple_logger;
 mod scenes;
 mod bullet;
 mod enemy;
+mod particle;
+mod assets;
 
 use crate::scenes::manager::SceneManager;
 use crate::scenes::title::TitleScene;
@@ -23,14 +25,17 @@ lazy_static! {
 fn main() -> tetra::Result {
     color_backtrace::install();
     simple_logger::init().unwrap();
-    ContextBuilder::new(format!("Shoot out your life (LD44) v{}", GAMEINFO.version).as_str(), GAMEINFO.window.width as i32, GAMEINFO.window.height as i32)
+    ContextBuilder::new(format!("Shoot out your life (LD44) v{}",
+                    GAMEINFO.version).as_str(),
+                    GAMEINFO.window.width as i32,
+                    GAMEINFO.window.height as i32)
         .window_scale(2)
         .maximized(false)
         .fullscreen(false)
         .resizable(false)
         .scaling(ScreenScaling::ShowAllPixelPerfect)
         .vsync(false)
-        .quit_on_escape(true)
+        .quit_on_escape(false)
         .build()?
         .run_with(|ctx| {
             let scene = TitleScene::new(ctx)?;

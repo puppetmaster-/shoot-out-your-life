@@ -9,6 +9,8 @@ pub trait Scene {
 pub enum Transition {
 	None,
 	Push(Box<Scene>),
+	Pop,
+	Quit,
 }
 
 pub struct SceneManager {
@@ -31,6 +33,12 @@ impl State for SceneManager {
 				Transition::Push(s) => {
 					self.scenes.push(s);
 				}
+				Transition::Pop => {
+					self.scenes.pop();
+				}
+				Transition::Quit => {
+					window::quit(ctx)
+				}
 			},
 			None => window::quit(ctx),
 		}
@@ -44,6 +52,12 @@ impl State for SceneManager {
 				Transition::None => {}
 				Transition::Push(s) => {
 					self.scenes.push(s);
+				}
+				Transition::Pop => {
+					self.scenes.pop();
+				}
+				Transition::Quit => {
+					window::quit(ctx)
 				}
 			},
 			None => window::quit(ctx),
