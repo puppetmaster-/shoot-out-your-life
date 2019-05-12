@@ -25,7 +25,7 @@ lazy_static! {
 fn main() -> tetra::Result {
     color_backtrace::install();
     simple_logger::init().unwrap();
-    ContextBuilder::new(format!("Shoot out your life (LD44) v{}",
+    ContextBuilder::new(format!("Shoot out your life v{}",
                     GAMEINFO.version).as_str(),
                     GAMEINFO.window.width as i32,
                     GAMEINFO.window.height as i32)

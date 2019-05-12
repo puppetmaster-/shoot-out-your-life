@@ -90,8 +90,10 @@ impl GameScene{
 						let bh = bullet.get_area().1;
 						if w > 0 && h > 0 && bw > 0 && bh > 0 && x < bx + bw && x + w > bx && y < by + bh && y + h > by {
 							// score logic
-							let points = ((480.0 - enemy.get_position().y)/5.0) as i32 * bullet.get_force();
-							self.score += points;
+							let points = 50;
+							let bonus = ((480.0 - enemy.get_position().y)/5.0) as i32 * glm::clamp_scalar(bullet.get_force(), 1, 4);
+							self.score += points + bonus;
+							println!("points added {} and bonus{}", points, bonus);
 							enemy.hurt();
 							bullet.consume_force();
 							self.life +=1;
@@ -171,7 +173,7 @@ impl GameScene{
 		}
 
 		// next level logic
-		if self.count_spawn >=10*self.level{
+		if self.count_spawn >=10 * glm::clamp_scalar(self.level, 1, 8){
 			self.level +=1;
 			self.count_spawn = 0;
 			self.assets.get_sound(&SoundName::NewLevel).play_with(ctx, 0.1, 1.0).ok();
@@ -209,15 +211,17 @@ impl Scene for GameScene {
 			}
 
 			//move
-			if (input::is_key_pressed(ctx, Key::Right) ||
-				input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Right))
-				&& self.player_position.x <= 180.0 {
-				self.player_position.x += 20.0
+			if (input::is_key_pressed(ctx, Key::Right) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Right)) && self.player_position.x <= 180.0 {
+				self.player_position.x += 20.0;
 			}
-			if (input::is_key_pressed(ctx, Key::Left) ||
-				input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left))
-				&& self.player_position.x >= 60.0{
-				self.player_position.x -= 20.0
+			if input::is_key_pressed(ctx, Key::Up) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Up){
+				self.player_position.x = 200.0;
+			}
+			if input::is_key_pressed(ctx, Key::Down) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Down){
+				self.player_position.x = 40.0;
+			}
+			if (input::is_key_pressed(ctx, Key::Left) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left)) && self.player_position.x >= 60.0 {
+				self.player_position.x -= 20.0;
 			}
 
 			//shoot
