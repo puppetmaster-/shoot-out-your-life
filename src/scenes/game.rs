@@ -2,14 +2,18 @@ use tetra::Context;
 use tetra::glm::{self, Vec2};
 use tetra::graphics::{self, DrawParams};
 use tetra::input::{self, Key, GamepadButton};
-use crate::GAMEINFO;
+use crate::{GAMEINFO};
 use crate::scenes::manager::{Scene, Transition};
-use crate::bullet::Bullet;
+use crate::bullet::{self, Bullet};
 use crate::enemy::Enemy;
 use tetra::graphics::Color;
 use rand::prelude::*;
 use crate::assets::{Assets, SoundName, TextureName, AnimationName, TextName};
 use crate::particle::Particle;
+
+const SEED:[u8;32] = [12; 32];
+const TIMEOUT_MAX: i32 = 8;
+const MAX_BOTTOM: f32 = 412.0;
 
 pub struct GameScene {
 	state: State,
@@ -27,6 +31,8 @@ pub struct GameScene {
 	enemies: Vec<Enemy>,
 	particles: Vec<Particle>,
 	randomizer: ThreadRng,
+	spawn_rnd: StdRng,
+	input_timeout: i32,
 }
 
 impl GameScene{
@@ -41,12 +47,14 @@ impl GameScene{
 			level: 1,
 			count_spawn: 0,
 			spawn_rate: 0,
-			player_position: Vec2::new((GAMEINFO.window.width/2) as f32,(GAMEINFO.window.height - 76) as f32),
+			player_position: Vec2::new((GAMEINFO.window.width/2) as f32,(GAMEINFO.window.height - 56) as f32),
 			bullets: vec![],
 			enemies: vec![],
 			particles: vec![],
 			assets: Assets::new(ctx)?,
-			randomizer: rand::thread_rng(),
+			randomizer:  rand::thread_rng(),
+			spawn_rnd: SeedableRng::from_seed(SEED),
+			input_timeout: 0,
 		})
 	}
 
@@ -60,13 +68,15 @@ impl GameScene{
 		self.level = 1;
 		self.count_spawn = 0;
 		self.player_position = Vec2::new(GAMEINFO.window.get_half().x,(GAMEINFO.window.height - 76) as f32);
+		self.spawn_rnd = SeedableRng::from_seed(SEED);
 	}
 
 	fn shoot(&mut self,ctx: &mut Context, force: i32, spawn_position: Vec2){
-		let mut bullet = Bullet::new(spawn_position, force);
-		bullet.set_velocity(bullet.get_velocity() * glm::clamp_scalar(force, 1, 4) as f32);
-		self.bullets.push(bullet);
-		if force == 1{
+		let kind = glm::clamp_scalar(force, 1, 4);
+		let mut b = Bullet::new(spawn_position+Vec2::new(0.0, 10.0), force, kind); //y=10 can shoot enemy at the bottom line
+		b.set_velocity(bullet::get_velocity_from_force(kind));
+		self.bullets.push(b);
+		if kind == 1{
 			self.assets.get_sound(&SoundName::ShootSlow).play_with(ctx, 0.1, self.randomizer.gen_range(0.8, 1.1)).ok();
 			input::start_gamepad_vibration(ctx, 0, 0.05, 200);
 		}else{
@@ -93,10 +103,14 @@ impl GameScene{
 							let points = 50;
 							let bonus = ((480.0 - enemy.get_position().y)/5.0) as i32 * glm::clamp_scalar(bullet.get_force(), 1, 4);
 							self.score += points + bonus;
-							println!("points added {} and bonus{}", points, bonus);
-							enemy.hurt();
-							bullet.consume_force();
-							self.life +=1;
+							self.assets.get_text_mut(TextName::ScoreGui).set_content(format!("{}",self.score));
+							for _i in 0..bullet.get_force(){
+								if enemy.get_life() > 0{
+									enemy.hurt();
+									bullet.consume_force();
+									self.life +=1;
+								}
+							}
 							self.assets.get_sound(&SoundName::Hurt).play_with(ctx, 0.1, self.randomizer.gen_range(0.9, 1.1)).ok();
 						}
 					}
@@ -107,7 +121,7 @@ impl GameScene{
 
 	fn check_player_get_hurt(&mut self, ctx: &mut Context){
 		for enemy in self.enemies.iter_mut(){
-			if enemy.get_position().y >= 392.0 && !enemy.is_dead(){
+			if enemy.get_position().y >= MAX_BOTTOM && !enemy.is_dead(){
 				self.life -= 1;
 				enemy.hurt();
 				self.assets.get_sound(&SoundName::Hurt2).play_with(ctx, 0.2, self.randomizer.gen_range(0.8, 1.1)).ok();
@@ -118,7 +132,7 @@ impl GameScene{
 
 	fn check_player_get_life(&mut self, ctx: &mut Context){
 		for bullet in self.bullets.iter_mut(){
-			if bullet.get_position().y >= 392.0 && !bullet.is_broken() && bullet.is_returning(){
+			if bullet.get_position().y >= MAX_BOTTOM && !bullet.is_broken() && bullet.is_returning(){
 				self.life += bullet.get_force();
 				bullet.set_broken();
 				self.assets.get_sound(&SoundName::Pickup).play_with(ctx, 0.08, self.randomizer.gen_range(0.9, 1.0)).ok();
@@ -134,34 +148,34 @@ impl GameScene{
 		if self.level <= 2{
 			positions = vec![80.0,100.0,120.0,140.0,160.0];
 		}else if self.level <= 4{
-			vec_velocity = self.randomizer.gen_range(0,2);
+			vec_velocity = self.spawn_rnd.gen_range(0,2);
 			positions = vec![60.0,80.0,100.0,140.0,160.0,180.0,200.0];
 		}else if self.level == 5{
 			max_enemy = 4;
 			positions = vec![40.0,60.0,80.0,100.0,140.0,160.0,180.0,200.0];
 		} else if self.level == 6{
 			if self.count_spawn % 5 == 0 {
-				vec_velocity = self.randomizer.gen_range(1, 3);
+				vec_velocity = self.spawn_rnd.gen_range(1, 3);
 			}
 			positions = vec![80.0,100.0,120.0,160.0,180.0];
 		} else if self.level == 7{
 			max_enemy = 5;
-			vec_velocity = self.randomizer.gen_range(0,2);
+			vec_velocity = self.spawn_rnd.gen_range(0,2);
 			positions = vec![80.0,100.0,120.0,140.0,160.0];
 		}else if self.level == 8{
 			max_enemy = 6;
 			positions = vec![40.0,80.0,120.0,160.0,200.0];
 		}else{
 			if self.count_spawn % 10 == 0{
-				vec_velocity = self.randomizer.gen_range(1,3);
+				vec_velocity = self.spawn_rnd.gen_range(1,3);
 			}else if self.count_spawn % 4 == 0 {
-				vec_velocity = self.randomizer.gen_range(0,2);
+				vec_velocity = self.spawn_rnd.gen_range(0,2);
 			}
 		}
 
 		// enemy spawn
 		let max_len = positions.len();
-		let x = positions[self.randomizer.gen_range(0,max_len)];
+		let x = positions[self.spawn_rnd.gen_range(0,max_len)];
 		if self.enemies.len() < max_enemy as usize{
 			let mut enemy = Enemy::new(Vec2::new(x,-20.0));
 			enemy.set_velocity(Vec2::new(0.0,enemy.get_velocity().y + vec_velocity as f32));
@@ -201,7 +215,7 @@ impl Scene for GameScene {
 		self.assets.update();
 
 		//GAME
-		if self.state != State::Dead {
+		if self.state != State::Dead && self.state != State::Pause {
 
 			// dont't spawn on same place
 			self.spawn_rate += 1;
@@ -212,17 +226,35 @@ impl Scene for GameScene {
 
 			//move
 			if (input::is_key_pressed(ctx, Key::Right) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Right)) && self.player_position.x <= 180.0 {
+				self.input_timeout = TIMEOUT_MAX;
 				self.player_position.x += 20.0;
-			}
-			if input::is_key_pressed(ctx, Key::Up) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Up){
+			}else if input::is_key_pressed(ctx, Key::Up) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::RightShoulder){
+				self.input_timeout = TIMEOUT_MAX;
 				self.player_position.x = 200.0;
-			}
-			if input::is_key_pressed(ctx, Key::Down) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Down){
+			}else if input::is_key_pressed(ctx, Key::Down) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::LeftShoulder){
+				self.input_timeout = TIMEOUT_MAX;
 				self.player_position.x = 40.0;
-			}
-			if (input::is_key_pressed(ctx, Key::Left) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left)) && self.player_position.x >= 60.0 {
+			}else if (input::is_key_pressed(ctx, Key::Left) || input::is_gamepad_button_pressed(ctx, 0, GamepadButton::Left)) && self.player_position.x >= 60.0 {
+				self.input_timeout = TIMEOUT_MAX;
 				self.player_position.x -= 20.0;
+			}else if input::is_key_down(ctx, Key::Right)||input::is_gamepad_button_down(ctx, 0, GamepadButton::Right){
+				self.input_timeout -= 1;
+				if self.input_timeout <= 0 {
+					self.input_timeout = TIMEOUT_MAX;
+					if self.player_position.x <= 180.0 {
+						self.player_position.x += 20.0;
+					}
+				}
+			}else if input::is_key_down(ctx, Key::Left) ||input::is_gamepad_button_down(ctx, 0, GamepadButton::Left){
+				self.input_timeout -= 1;
+				if self.input_timeout <= 0 {
+					self.input_timeout = TIMEOUT_MAX;
+					if self.player_position.x >= 60.0 {
+						self.player_position.x -= 20.0;
+					}
+				}
 			}
+
 
 			//shoot
 			if (input::is_key_down(ctx, Key::Space) ||
@@ -231,17 +263,18 @@ impl Scene for GameScene {
 					self.state = State::Pressed;
 					self.force += 1;
 					self.life -= 1;
+					self.assets.get_sound(&SoundName::Charge).play_with(ctx, 0.1, self.randomizer.gen_range(0.9, 1.1)).ok();
 				} else if self.state == State::Pressed {
 					self.tick += 1;
 					if self.tick > self.tick_max {
 						self.force += 1;
 						self.life -= 1;
 						self.tick = 0;
+						let pitch = self.force as f32 * 0.04;
+						self.assets.get_sound(&SoundName::Charge).play_with(ctx, 0.1, self.randomizer.gen_range(0.9 + pitch, 1.1 + pitch)).ok();
 					}
 				}
-			}
-
-			if (input::is_key_released(ctx, Key::Space) ||
+			}else if (input::is_key_released(ctx, Key::Space) ||
 				input::is_gamepad_button_released(ctx, 0, GamepadButton::A)) && self.force > 0 {
 				self.state = State::Normal;
 				self.shoot(ctx, self.force, self.player_position);
@@ -252,26 +285,29 @@ impl Scene for GameScene {
 			// check for player dead
 			if self.life < 0 {
 				self.state = State::Dead;
-				self.assets.get_text_mut(TextName::Score).set_content(format!("SCORE: {}",self.score));
+				self.assets.get_text_mut(TextName::Score).set_content(format!("{}",self.score));
 				input::start_gamepad_vibration(ctx, 0, 0.4, 500);
 			}
 
 			//update bullets
-			self.bullets.retain(|b| !b.is_broken());
-			let mut bullet_positions = vec![];
-			for bullet in self.bullets.iter_mut(){
+			self.bullets.retain(|b|!b.is_broken());
+			for bullet in self.bullets.iter_mut() {
 				bullet.update();
-				bullet_positions.push(bullet.get_position());
 			}
+			let bullet_positions: Vec<Vec2> = self.bullets.iter().map(|bullet|bullet.get_position()).collect();
+			/*
+			for i in 0..bullet.get_force() {
+				bullet_positions.push(bullet.get_position() - Vec2::new(0.0, -(i as f32 * 2.0)));
+			}
+			*/
 
 
 			//update enemy
 			self.enemies.retain(|e| !e.is_dead());
-			let mut enemy_positions = vec![];
 			for enemy in self.enemies.iter_mut(){
 				enemy.update();
-				enemy_positions.push(enemy.get_position());
 			}
+			let enemy_positions: Vec<_> = self.enemies.iter().map(|e|e.get_position()).collect();
 
 			//update and create particles
 			for pos in bullet_positions{
@@ -295,6 +331,15 @@ impl Scene for GameScene {
 
 		}
 
+		// pause
+		if self.state == State::Normal &&
+			(input::is_key_released(ctx, Key::Escape) || input::is_gamepad_button_released(ctx,0,GamepadButton::Start)){
+			self.state = State::Pause;
+		}else if self.state == State::Pause &&
+			(input::is_key_released(ctx, Key::Escape) || input::is_gamepad_button_released(ctx,0,GamepadButton::Start)){
+			self.state = State::Normal;
+		}
+
 		// reset game after dead
 		if self.state == State::Dead && (input::is_key_released(ctx, Key::Return) ||
 			input::is_gamepad_button_released(ctx,0,GamepadButton::Start)){
@@ -313,6 +358,9 @@ impl Scene for GameScene {
 		graphics::clear(ctx, Color::rgb(0.122, 0.055, 0.11));
 		graphics::draw(ctx,self.assets.get_texture(&TextureName::Background),
 					   Vec2::new(0.0, 0.0));
+		graphics::draw(ctx,self.assets.get_animation(&AnimationName::Line),self.player_position-Vec2::new(3.0,379.0));
+
+		//draw player
 		graphics::draw(ctx,self.assets.get_animation(&AnimationName::Player),
 					   self.player_position-Vec2::new(15.0,0.0));
 
@@ -326,15 +374,22 @@ impl Scene for GameScene {
 
 		//draw bullets
 		for bullet in self.bullets.iter(){
-			if bullet.is_returning(){
-				graphics::draw(ctx,
-							   self.assets.get_texture(&TextureName::BulletDown),
-							   bullet.get_position()-Vec2::new(8.0,0.0))
+			let name = if bullet.is_returning() {
+				if bullet.get_kind() == 1{
+					TextureName::Bullet1Down
+				}else if bullet.get_kind() == 2{
+					TextureName::Bullet2Down
+				}else{
+					TextureName::Bullet3Down
+				}
+			}else if bullet.get_kind() == 1{
+				TextureName::Bullet1Up
+			}else if bullet.get_kind() == 2{
+				TextureName::Bullet2Up
 			}else{
-				graphics::draw(ctx,
-							   self.assets.get_texture(&TextureName::BulletUp),
-							   bullet.get_position()-Vec2::new(8.0,0.0))
-			}
+				TextureName::Bullet3Up
+			};
+			graphics::draw(ctx, self.assets.get_texture(&name),bullet.get_position()-Vec2::new(8.0,0.0))
 		}
 
 		//draw enemy
@@ -355,10 +410,13 @@ impl Scene for GameScene {
 		}
 
 		//draw gui
-		graphics::draw(ctx, self.assets.get_texture(&TextureName::Life), Vec2::new(10.0, 436.0));
-		graphics::draw(ctx, self.assets.get_text(&TextName::Life), Vec2::new(32.0, 433.0));
-		graphics::draw(ctx, self.assets.get_texture(&TextureName::Level), Vec2::new(180.0, 436.0));
-		graphics::draw(ctx, self.assets.get_text(&TextName::Level), Vec2::new(200.0, 433.0));
+		graphics::draw(ctx, self.assets.get_texture(&TextureName::Life), Vec2::new(10.0, 13.0)); //436
+		graphics::draw(ctx, self.assets.get_text(&TextName::Life), Vec2::new(32.0, 10.0)); //433
+		graphics::draw(ctx, self.assets.get_texture(&TextureName::Level), Vec2::new(180.0, 436.0)); //180,436
+		graphics::draw(ctx, self.assets.get_text(&TextName::Level), Vec2::new(200.0, 433.0)); //200,433
+		//score
+		let bound_score = self.assets.get_text(&TextName::ScoreGui).get_bounds(ctx).unwrap();
+		graphics::draw(ctx, self.assets.get_text(&TextName::ScoreGui), Vec2::new(230.0-bound_score.width, 12.0));
 		if self.state == State::Dead {
 			let bound = self.assets.get_text(&TextName::GameOver).get_bounds(ctx).unwrap();
 			let bound2 = self.assets.get_text(&TextName::Score).get_bounds(ctx).unwrap();
@@ -368,6 +426,11 @@ impl Scene for GameScene {
 			graphics::draw(ctx, self.assets.get_text(&TextName::Score),
 						   Vec2::new(GAMEINFO.window.get_half().x - bound2.width / 2.0,
 									 GAMEINFO.window.get_half().y + 30.0));
+		}else if self.state == State::Pause{
+			let bound = self.assets.get_text(&TextName::Pause).get_bounds(ctx).unwrap();
+			graphics::draw(ctx, self.assets.get_text(&TextName::Pause),
+						   Vec2::new(GAMEINFO.window.get_half().x - bound.width / 2.0,
+									 GAMEINFO.window.get_half().y));
 		}
 		Ok(Transition::None)
 	}
@@ -379,4 +442,5 @@ pub enum State {
 	Normal,
 	Pressed,
 	Dead,
+	Pause,
 }
