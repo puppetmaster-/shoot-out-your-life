@@ -99,9 +99,9 @@ impl Scene for TitleScene {
 
 fn build_gfx(ctx: &mut Context) -> tetra::Result<Vec<Texture>>{
 	let gfx = vec![
-		Texture::from_file_data(ctx,include_bytes!("../../assets/art/particle_0.png"))?,
-		Texture::from_file_data(ctx,include_bytes!("../../assets/art/particle_1.png"))?,
-		Texture::from_file_data(ctx,include_bytes!("../../assets/art/particle_2.png"))?,
+		Texture::from_file_data(ctx,include_bytes!("../../assets/art/particle_00.png"))?,
+		Texture::from_file_data(ctx,include_bytes!("../../assets/art/particle_01.png"))?,
+		Texture::from_file_data(ctx,include_bytes!("../../assets/art/particle_02.png"))?,
 	];
 	Ok(gfx)
 }
