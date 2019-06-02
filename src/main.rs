@@ -13,13 +13,14 @@ use crate::scenes::manager::SceneManager;
 use crate::scenes::title::TitleScene;
 
 use tetra::ContextBuilder;
-use tetra::graphics::{Vec2, ScreenScaling};
+use tetra::graphics::{ScreenScaling};
+use tetra::glm::{Vec2};
 
 #[macro_use]
 extern crate lazy_static;
 
 lazy_static! {
-  static ref GAMEINFO: GameInformation = GameInformation::new();
+    static ref GAMEINFO: GameInformation = GameInformation::new();
 }
 
 fn main() -> tetra::Result {
