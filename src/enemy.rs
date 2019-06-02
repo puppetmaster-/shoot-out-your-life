@@ -5,8 +5,6 @@ pub struct Enemy{
 	position: Vec2,
 	area: (i32,i32),
 	velocity: Vec2,
-	lifetime: i32,
-	tick: i32,
 	dead: bool,
 	life: i32,
 }
@@ -14,36 +12,27 @@ pub struct Enemy{
 impl Enemy{
 	pub fn new(position: Vec2) -> Self{
 		let velocity = Vec2::new(0.0,1.0);
-		let lifetime = 1000;
 		Enemy{
 			position,
 			area: (19, 17),
 			velocity,
-			lifetime,
-			tick: 0,
 			dead: false,
 			life: 1
 		}
 	}
 
 	pub fn update(&mut self){
-		self.tick += 1;
-		if self.lifetime < self.tick{
-			self.dead = true;
-		}
 		if !self.dead {
 			self.position += self.velocity;
 		}
-
-		// bottom same as player y position
-		if self.position.y >= 392.0{
-			self.velocity = Vec2::new(0.0,0.0);
-		}
-
 	}
 
 	pub fn set_life(&mut self, life: i32){
 		self.life = life;
+	}
+
+	pub fn get_life(&self) -> i32{
+		self.life
 	}
 
 	pub fn get_area(&self) -> (i32,i32){
